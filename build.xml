@@ -1,0 +1,163 @@
+<project name="Salesforce Ant tasks" default="describeMetadata" basedir="../" xmlns:sf="antlib:com.salesforce">
+    <!-- Note that basedir above is one back cuz we are in build dir -->
+    <!--
+        * Cory's SFDC backup-to-git script
+
+        * TODO
+            : ssh key issue, can this be scheduled to push automagically?
+            : handle first-time creation of branches more gracefully than just swallowing a fatal git error
+            : dynamiscise it instead of hardcoding four envs
+            :    ...maybe have a master ant file of targets/macros and have 
+            :    ...each directory contain a build.prop and very minimal build.xml 
+            : email a summary.  maybe just the git output? (handled now in cronscript...)
+            : include standard objects in the package.xml (use getMetadata?)
+     -->
+
+    <!-- load shell environment -->
+    <property environment="ENV" />
+    <property file="master_build/build.properties"/>
+    <tstamp />
+    <!-- **************************************** -->
+
+    <!-- **************************************** -->
+    <target name="retrieveAll0">
+       <echo message="retrieving metadata using username ${appirio.env0.username}" />
+       <mkdir dir="sf_envs/${appirio.env0.name}"/>
+        <sf:retrieve 
+            username="${appirio.env0.username}" 
+            password="${appirio.env0.password}" 
+            serverurl="${appirio.env0.serverurl}" 
+            retrieveTarget="sf_envs/${appirio.env0.name}" 
+            unpackaged="package.xml"/>
+     </target>
+
+    <target name="snapshot0">
+       <antcall target="retrieveAll0" />
+       <git-update-branch branchName="${appirio.env0.name}" gitBaseDir="${appirio.gitBaseDir}" /> 
+    </target>
+
+    <!-- **************************************** -->
+    <target name="retrieveAll1">
+       <echo message="retrieving metadata using username ${appirio.env1.username}" />
+       <mkdir dir="sf_envs/${appirio.env1.name}"/>
+        <sf:retrieve 
+            username="${appirio.env1.username}" 
+            password="${appirio.env1.password}" 
+            serverurl="${appirio.env1.serverurl}" 
+            retrieveTarget="sf_envs/${appirio.env1.name}" 
+            unpackaged="package.xml"/>
+     </target>
+
+    <target name="snapshot1">
+       <antcall target="retrieveAll1" />
+       <git-update-branch branchName="${appirio.env1.name}" gitBaseDir="${appirio.gitBaseDir}" /> 
+    </target>
+
+    <!-- **************************************** -->
+    <target name="retrieveAll2">
+       <echo message="retrieving metadata using username ${appirio.env2.username}" />
+       <mkdir dir="sf_envs/${appirio.env2.name}"/>
+        <sf:retrieve 
+            username="${appirio.env2.username}" 
+            password="${appirio.env2.password}" 
+            serverurl="${appirio.env2.serverurl}" 
+            retrieveTarget="sf_envs/${appirio.env2.name}" 
+            unpackaged="package.xml"/>
+    </target>
+
+    <target name="snapshot2">
+       <antcall target="retrieveAll2" />
+       <git-update-branch branchName="${appirio.env2.name}" gitBaseDir="${appirio.gitBaseDir}" /> 
+    </target>
+
+    <!-- **************************************** -->
+    <target name="retrieveAll3">
+       <echo message="retrieving metadata using username ${appirio.env3.username}" />
+       <mkdir dir="sf_envs/${appirio.env3.name}"/>
+        <sf:retrieve 
+            username="${appirio.env3.username}" 
+            password="${appirio.env3.password}" 
+            serverurl="${appirio.env3.serverurl}" 
+            retrieveTarget="sf_envs/${appirio.env3.name}" 
+            unpackaged="package.xml"/>
+     </target>
+
+    <target name="snapshot3">
+       <antcall target="retrieveAll3" />
+       <git-update-branch branchName="${appirio.env3.name}" gitBaseDir="${appirio.gitBaseDir}" /> 
+    </target>
+
+    <!-- **************************************** -->
+	<!-- Retrieve the information on all supported metadata type -->
+    <target name="describeMetadata">
+      <sf:describeMetadata
+      username="${appirio.env3.username}"
+      password="${appirio.env3.password}"
+      serverurl="${appirio.env3.serverurl}"
+      resultFilePath="/tmp/env3_metadata.txt" />
+    </target>
+
+    <!-- **************************************** -->
+    <!--overwrite the active git src directory with the latest snapshot directory -->
+    <target name="moveSnapshotDirectory">
+       <delete dir="${appirio.gitBaseDir}/src" />
+       <echo message="moving sf_envs/${snapshotDirectory} to ${appirio.gitBaseDir}/src" />
+       <move file="sf_envs/${snapshotDirectory}" toFile="${appirio.gitBaseDir}/src" />
+    </target>
+
+    <!-- **************************************** -->
+    <macrodef name = "git">
+        <attribute name = "command" />
+        <attribute name = "dir" default = "" />
+        <element name = "args" optional = "true" />
+        <sequential>
+            <echo message = "git @{command}" />
+            <exec executable = "git" dir = "@{dir}">
+                <arg value = "@{command}" />
+                <args/>
+            </exec>
+        </sequential>
+    </macrodef>
+
+    <!-- **************************************** -->
+    <!-- within the active git directory, checkout to the name branch, update all, and push to origin-->
+    <!-- **************************************** -->
+    <macrodef name = "git-update-branch">
+        <attribute name = "branchName" />
+        <attribute name = "gitBaseDir" />
+        <sequential>
+            <git command = "branch" dir="@{gitBaseDir}" >
+                <args>
+                    <arg value="@{branchName}" />
+                </args>
+            </git>
+            <git command = "checkout" dir="@{gitBaseDir}" >
+                <args>
+                    <arg value="@{branchName}" />
+                    <arg value="-f" />
+                </args>
+            </git>
+           <antcall target="moveSnapshotDirectory">
+               <param name="snapshotDirectory" value="@{branchName}" />
+           </antcall>
+            <git command="add" dir="@{gitBaseDir}" >
+                <args>
+                    <arg value="src/*" />
+                </args>
+            </git>
+            <git command="commit" dir="@{gitBaseDir}" >
+                <args>
+                    <arg value="-a" />
+                    <arg value="-m" />
+                    <arg value="@{branchName}_${DSTAMP}_${TSTAMP}" />
+                </args>
+            </git>
+            <git command="push" dir="@{gitBaseDir}" > 
+                <args>
+                    <arg value="origin" />
+                    <arg value="@{branchName}" />
+                </args>
+            </git>
+        </sequential>
+    </macrodef>
+</project>
