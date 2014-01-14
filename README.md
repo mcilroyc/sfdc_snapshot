@@ -5,11 +5,13 @@ Retrieve metadata from a set of SFDC orgs and check in to branches of a git repo
 
 This script works best if installed in a subdirectory as follows
 
+```
 >/project home
 -->/master_build (this directory holds all the ant config files that comes with this asset)
 -->/sf_envs (used to stage the sfdc retrieve targets) 
 -->/{gitBaseDir} (as defined by appirio.gitBaseDir in build.properties)
 -->/{gitBaseDir}/src
+```
 
 Requires git, Ant, and SFDC ant libs
 
